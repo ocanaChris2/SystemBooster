@@ -172,7 +172,7 @@ mod backend {
             }
             Request::GetStatus => Response::Status(Status {
                 boosted: eng.is_boosted(),
-                active_profile: None,
+                active_profile: eng.active_profile().map(str::to_string),
                 metrics: snapshot::sample(),
             }),
         }

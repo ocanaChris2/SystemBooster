@@ -16,7 +16,19 @@ const state = {
   profile: "Gaming",
   boosted: false,
   memTotal: 16 * 1024 ** 3,
+  // Custom-profile tuning: process names (lower-cased) to opt in / opt out.
+  includes: [],
+  excludes: [],
 };
+
+// Arguments for scan/start_boost: Custom forwards the include/exclude lists.
+function profileArgs() {
+  return {
+    profile: state.profile,
+    includes: state.profile === "Custom" ? state.includes : [],
+    excludes: state.profile === "Custom" ? state.excludes : [],
+  };
+}
 
 const $ = (sel) => document.querySelector(sel);
 const app = $(".app");
@@ -45,7 +57,7 @@ document.querySelectorAll(".profile").forEach((btn) => {
 // ---- Boost toggle ----
 $("#boost-btn").addEventListener("click", async () => {
   if (!state.boosted) {
-    const res = await invoke("start_boost", { profile: state.profile });
+    const res = await invoke("start_boost", profileArgs());
     const report = res.Boosted;
     if (report) {
       state.boosted = true;
@@ -105,7 +117,7 @@ async function refreshStatus() {
 
 // ---- Apps & Services list ----
 async function loadCandidates() {
-  const res = await invoke("scan", { profile: state.profile });
+  const res = await invoke("scan", profileArgs());
   const scan = res.Scan;
   if (!scan) return;
   $("#proc-list").innerHTML = scan.processes.map(renderCandidate).join("");
@@ -113,11 +125,38 @@ async function loadCandidates() {
 }
 
 function renderCandidate(c) {
-  const cls = c.eligible ? "candidate" : "candidate locked";
+  const custom = state.profile === "Custom";
+  const cls =
+    (c.eligible ? "candidate" : "candidate locked") + (custom ? " tunable" : "");
   const tag = c.eligible
     ? '<span class="tag eligible">eligible</span>'
     : '<span class="tag locked">protected</span>';
-  return `<li class="${cls}"><span>${escapeHtml(c.name)}</span>${tag}</li>`;
+  // In Custom mode each process row is clickable to opt it in/out.
+  const name = escapeHtml(c.name);
+  return `<li class="${cls}" data-name="${name}"><span>${name}</span>${tag}</li>`;
+}
+
+// In Custom mode, clicking a process row toggles whether it is opted in
+// (default-protected items) or opted out (otherwise eligible items), then
+// re-scans so the eligibility tags update.
+$("#proc-list").addEventListener("click", async (e) => {
+  if (state.profile !== "Custom") return;
+  const li = e.target.closest("li[data-name]");
+  if (!li) return;
+  const name = li.dataset.name.toLowerCase();
+  const eligible = !li.classList.contains("locked");
+  if (eligible) {
+    toggle(state.excludes, name);
+  } else {
+    toggle(state.includes, name);
+  }
+  await loadCandidates();
+});
+
+function toggle(list, value) {
+  const i = list.indexOf(value);
+  if (i === -1) list.push(value);
+  else list.splice(i, 1);
 }
 
 // ---- Logs ----
@@ -135,15 +174,31 @@ function escapeHtml(s) {
 // ---- Browser-preview mock backend ----
 function mockInvoke(cmd, args) {
   switch (cmd) {
-    case "scan":
+    case "scan": {
+      // Mirror the engine's tiered classification so the Custom toggles are
+      // demonstrable in preview: explorer.exe is opt-in (protected unless
+      // included), lsass/csrss are hard-critical, the rest default to eligible.
+      const inc = (args?.includes || []).map((s) => s.toLowerCase());
+      const exc = (args?.excludes || []).map((s) => s.toLowerCase());
+      const critical = ["lsass.exe", "csrss.exe"];
+      const optIn = ["explorer.exe"];
+      const procs = [
+        { key: "1500", name: "Spotify.exe" },
+        { key: "1600", name: "Slack.exe" },
+        { key: "2000", name: "explorer.exe" },
+        { key: "800", name: "lsass.exe" },
+        { key: "900", name: "csrss.exe" },
+      ];
+      const eligibleOf = (name) => {
+        const n = name.toLowerCase();
+        if (critical.includes(n)) return false;
+        if (exc.includes(n)) return false;
+        if (optIn.includes(n)) return inc.includes(n);
+        return true;
+      };
       return Promise.resolve({
         Scan: {
-          processes: [
-            { key: "1500", name: "Spotify.exe", eligible: true },
-            { key: "1600", name: "Slack.exe", eligible: true },
-            { key: "800", name: "lsass.exe", eligible: false },
-            { key: "900", name: "csrss.exe", eligible: false },
-          ],
+          processes: procs.map((p) => ({ ...p, eligible: eligibleOf(p.name) })),
           services: [
             { key: "WSearch", name: "Windows Search", eligible: true },
             { key: "Spooler", name: "Print Spooler", eligible: true },
@@ -151,6 +206,7 @@ function mockInvoke(cmd, args) {
           ],
         },
       });
+    }
     case "start_boost":
       return Promise.resolve({
         Boosted: { session_id: "0", suspended_processes: 23, changed_services: 11, skipped: [] },

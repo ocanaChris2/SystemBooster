@@ -49,6 +49,22 @@ impl MockProcessController {
     pub fn is_suspended(&self, pid: u32) -> bool {
         self.inner.lock().unwrap().suspended.contains(&pid)
     }
+
+    /// Test helper: simulate PID recycling by changing a process's start time,
+    /// so [`ProcessController::matches`] no longer recognises it as the same
+    /// process recorded at suspend time.
+    pub fn recycle_pid(&self, pid: u32, new_start_time: u64) {
+        if let Some(p) = self
+            .inner
+            .lock()
+            .unwrap()
+            .procs
+            .iter_mut()
+            .find(|p| p.pid == pid)
+        {
+            p.start_time = new_start_time;
+        }
+    }
 }
 
 impl ProcessController for MockProcessController {

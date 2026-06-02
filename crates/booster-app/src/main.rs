@@ -32,24 +32,36 @@ fn call(req: Request) -> Result<Response, String> {
     }
 }
 
-fn profile_from_name(name: &str) -> Profile {
+/// Build the engine [`Profile`] the UI selected. `includes`/`excludes` only
+/// matter for the `Custom` profile (opt-in default-protected processes / opt-out
+/// anything else); they are ignored for the canned Gaming/Work profiles.
+fn build_profile(name: &str, includes: Vec<String>, excludes: Vec<String>) -> Profile {
     match name {
         "Work" => Profile::work(),
+        "Custom" => Profile::custom(includes, excludes),
         _ => Profile::gaming(),
     }
 }
 
 #[tauri::command]
-fn scan(profile: String) -> Result<Response, String> {
+fn scan(
+    profile: String,
+    includes: Option<Vec<String>>,
+    excludes: Option<Vec<String>>,
+) -> Result<Response, String> {
     call(Request::Scan {
-        profile: profile_from_name(&profile),
+        profile: build_profile(&profile, includes.unwrap_or_default(), excludes.unwrap_or_default()),
     })
 }
 
 #[tauri::command]
-fn start_boost(profile: String) -> Result<Response, String> {
+fn start_boost(
+    profile: String,
+    includes: Option<Vec<String>>,
+    excludes: Option<Vec<String>>,
+) -> Result<Response, String> {
     call(Request::StartBoost {
-        profile: profile_from_name(&profile),
+        profile: build_profile(&profile, includes.unwrap_or_default(), excludes.unwrap_or_default()),
     })
 }
 

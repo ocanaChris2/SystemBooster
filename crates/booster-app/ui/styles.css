@@ -99,6 +99,8 @@ body {
   border-radius: 10px; padding: 10px 14px;
 }
 .candidate.locked { opacity: .55; }
+.candidate.tunable { cursor: pointer; }
+.candidate.tunable:hover { border-color: var(--accent); }
 .candidate .tag { font-size: 11px; padding: 2px 8px; border-radius: 999px; }
 .tag.eligible { background: rgba(61,220,132,.12); color: var(--accent); }
 .tag.locked { background: rgba(255,92,99,.12); color: var(--danger); }

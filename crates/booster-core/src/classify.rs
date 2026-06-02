@@ -21,11 +21,19 @@ pub const CRITICAL_PROCESSES: &[&str] = &[
     "dwm.exe",
     "fontdrvhost.exe",
     "wudfhost.exe",
-    "msmpeng.exe",  // Defender
-    "explorer.exe", // killing the shell is hostile; user can opt-in via Custom
+    "msmpeng.exe", // Defender
     // SystemBooster's own components:
     "booster-service.exe",
     "booster-app.exe",
+];
+
+/// Default-protected processes: skipped unless a Custom profile explicitly opts
+/// them in via `user_includes`. Unlike [`CRITICAL_PROCESSES`] these are not
+/// dangerous to suspend, just hostile by default (e.g. killing the shell), so a
+/// user who knows what they want may include them. Lower-cased. Never put a
+/// truly critical OS process here.
+pub const OPT_IN_PROCESSES: &[&str] = &[
+    "explorer.exe", // the shell; suspending it hides the taskbar/desktop
 ];
 
 /// Services that must never be paused/stopped. Lower-cased service (key) names.
@@ -87,6 +95,19 @@ impl Profile {
             user_includes: Vec::new(),
         }
     }
+
+    /// A user-tailored profile. `includes` opts in default-protected processes
+    /// (see [`OPT_IN_PROCESSES`]); `excludes` opts out anything else. Both are
+    /// matched case-insensitively, so they are stored lower-cased.
+    pub fn custom(includes: Vec<String>, excludes: Vec<String>) -> Self {
+        Self {
+            name: "Custom".into(),
+            suspend_processes: true,
+            suspend_services: true,
+            user_excludes: excludes.into_iter().map(|s| s.to_lowercase()).collect(),
+            user_includes: includes.into_iter().map(|s| s.to_lowercase()).collect(),
+        }
+    }
 }
 
 /// Holds the allowlists and applies them. Allowlists are data so they can be
@@ -95,6 +116,7 @@ impl Profile {
 pub struct Classifier {
     critical_processes: Vec<String>,
     critical_services: Vec<String>,
+    opt_in_processes: Vec<String>,
 }
 
 impl Default for Classifier {
@@ -102,6 +124,7 @@ impl Default for Classifier {
         Self {
             critical_processes: CRITICAL_PROCESSES.iter().map(|s| s.to_string()).collect(),
             critical_services: CRITICAL_SERVICES.iter().map(|s| s.to_string()).collect(),
+            opt_in_processes: OPT_IN_PROCESSES.iter().map(|s| s.to_string()).collect(),
         }
     }
 }
@@ -118,6 +141,12 @@ impl Classifier {
         c
     }
 
+    /// Names of the default-protected, opt-in-able processes (lower-cased). The
+    /// UI uses this to render which items a Custom profile may opt in.
+    pub fn opt_in_processes(&self) -> &[String] {
+        &self.opt_in_processes
+    }
+
     pub fn is_critical_process(&self, name: &str) -> bool {
         let n = name.to_lowercase();
         self.critical_processes.iter().any(|c| c == &n)
@@ -128,21 +157,35 @@ impl Classifier {
         self.critical_services.iter().any(|c| c == &n)
     }
 
+    /// True for default-protected processes that are only eligible when a
+    /// profile explicitly opts them in via `user_includes`.
+    pub fn is_opt_in_process(&self, name: &str) -> bool {
+        let n = name.to_lowercase();
+        self.opt_in_processes.iter().any(|c| c == &n)
+    }
+
     /// Decide whether a process may be suspended under `profile`.
     pub fn process_eligible(&self, p: &ProcessInfo, profile: &Profile) -> bool {
         if !profile.suspend_processes {
             return false;
         }
         let name = p.name.to_lowercase();
+        // Hard allowlist: never suspend, and `user_includes` can never override.
         if self.is_critical_process(&name) {
-            return false;
-        }
-        if profile.user_excludes.contains(&name) {
             return false;
         }
         // pid 0 and 4 are kernel-owned regardless of name.
         if p.pid == 0 || p.pid == 4 {
             return false;
+        }
+        // User opted this name out explicitly.
+        if profile.user_excludes.contains(&name) {
+            return false;
+        }
+        // Default-protected (e.g. the shell): only eligible if explicitly opted
+        // in via the profile's includes.
+        if self.is_opt_in_process(&name) {
+            return profile.user_includes.contains(&name);
         }
         true
     }

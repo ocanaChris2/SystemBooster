@@ -44,6 +44,14 @@ fn sample_processes() -> Vec<ProcessInfo> {
             image_path: None,
             start_time: 5,
         },
+        // Default-protected (opt-in via Custom only) — not in the round-trip
+        // fixture below, but used by the Custom-profile tests.
+        ProcessInfo {
+            pid: 1700,
+            name: "explorer.exe".into(),
+            image_path: None,
+            start_time: 6,
+        },
     ]
 }
 
@@ -172,6 +180,102 @@ fn work_profile_leaves_services_alone() {
     let report = engine.start_boost(&Profile::work()).unwrap();
     assert_eq!(report.changed_services, 0);
     assert_eq!(svcs.state_of("WSearch"), Some(ServiceState::Running));
+    engine.end_boost().unwrap();
+}
+
+#[test]
+fn custom_profile_opts_in_protected_process() {
+    let dir = tempdir();
+    let (engine, _, _) = make_engine(&dir);
+
+    // Under Gaming, explorer.exe is default-protected → not eligible.
+    let gaming = engine.scan(&Profile::gaming()).unwrap();
+    let explorer = gaming
+        .processes
+        .iter()
+        .find(|c| c.name == "explorer.exe")
+        .unwrap();
+    assert!(!explorer.eligible, "explorer must be protected by default");
+
+    // A Custom profile that opts it in makes it eligible.
+    let custom = Profile::custom(vec!["explorer.exe".into()], vec![]);
+    let scan = engine.scan(&custom).unwrap();
+    let explorer = scan
+        .processes
+        .iter()
+        .find(|c| c.name == "explorer.exe")
+        .unwrap();
+    assert!(
+        explorer.eligible,
+        "explorer should be eligible once opted in"
+    );
+
+    // Critical items can never be opted in, even by name.
+    let force_lsass = Profile::custom(vec!["lsass.exe".into()], vec![]);
+    let scan = engine.scan(&force_lsass).unwrap();
+    let lsass = scan
+        .processes
+        .iter()
+        .find(|c| c.name == "lsass.exe")
+        .unwrap();
+    assert!(!lsass.eligible, "critical lsass must never be opt-in-able");
+}
+
+#[test]
+fn custom_profile_excludes_named_process() {
+    let dir = tempdir();
+    let (engine, _, _) = make_engine(&dir);
+
+    let custom = Profile::custom(vec![], vec!["spotify.exe".into()]);
+    let scan = engine.scan(&custom).unwrap();
+    let spotify = scan
+        .processes
+        .iter()
+        .find(|c| c.name == "Spotify.exe")
+        .unwrap();
+    let slack = scan
+        .processes
+        .iter()
+        .find(|c| c.name == "Slack.exe")
+        .unwrap();
+    assert!(!spotify.eligible, "excluded Spotify must be locked");
+    assert!(slack.eligible, "Slack stays eligible");
+}
+
+#[test]
+fn pid_recycle_is_not_resumed() {
+    let dir = tempdir();
+    let (mut engine, procs, _) = make_engine(&dir);
+
+    engine.start_boost(&Profile::gaming()).unwrap();
+    assert!(procs.is_suspended(1500) && procs.is_suspended(1600));
+
+    // Simulate the OS reusing pid 1500 for a different process.
+    procs.recycle_pid(1500, 9999);
+
+    engine.end_boost().unwrap();
+    // The recycled pid must NOT be resumed (creation time no longer matches),
+    // while the untouched pid is restored normally.
+    assert!(procs.is_suspended(1500), "recycled pid must not be resumed");
+    assert!(!procs.is_suspended(1600), "matching pid should be resumed");
+}
+
+#[test]
+fn heartbeat_expiry_tracks_deadline() {
+    let dir = tempdir();
+    let (mut engine, _, _) = make_engine(&dir);
+
+    engine.start_boost(&Profile::gaming()).unwrap();
+    engine.heartbeat(std::time::Duration::from_millis(0));
+    std::thread::sleep(std::time::Duration::from_millis(5));
+    assert!(engine.heartbeat_expired(), "zero-ttl heartbeat must expire");
+
+    engine.heartbeat(std::time::Duration::from_secs(30));
+    assert!(
+        !engine.heartbeat_expired(),
+        "fresh heartbeat is not expired"
+    );
+
     engine.end_boost().unwrap();
 }
 

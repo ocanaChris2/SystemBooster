@@ -6,3 +6,7 @@ dist
 .DS_Store
 *.tmp
 crates/booster-app/gen
+
+# Build/distribution artifacts — never commit these
+*.zip
+*.bundle

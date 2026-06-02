@@ -77,6 +77,11 @@ impl BoosterEngine {
         self.active.is_some()
     }
 
+    /// Name of the profile behind the active boost, if any.
+    pub fn active_profile(&self) -> Option<&str> {
+        self.active.as_ref().map(|s| s.profile.as_str())
+    }
+
     /// On startup the service calls this: if a persisted session exists it means
     /// a previous boost did not get cleanly restored (crash / reboot), so we
     /// restore it immediately before doing anything else.

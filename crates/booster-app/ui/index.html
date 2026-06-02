@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SystemBooster</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app">
+      <!-- Left rail -->
+      <nav class="rail">
+        <div class="brand">⚡ <span>SystemBooster</span></div>
+        <button class="nav-item active" data-view="boost">Boost</button>
+        <button class="nav-item" data-view="apps">Apps &amp; Services</button>
+        <button class="nav-item" data-view="logs">Logs</button>
+
+        <div class="rail-section">Profiles</div>
+        <button class="profile active" data-profile="Gaming">Gaming</button>
+        <button class="profile" data-profile="Work">Work</button>
+        <button class="profile" data-profile="Custom">Custom</button>
+
+        <div class="rail-foot">
+          <span id="svc-dot" class="dot"></span>
+          <span id="svc-status">Service: checking…</span>
+        </div>
+      </nav>
+
+      <!-- Main -->
+      <main class="content">
+        <!-- BOOST VIEW -->
+        <section class="view" id="view-boost">
+          <header class="view-head">
+            <h1>Boost</h1>
+            <p class="sub">
+              Temporarily suspend non-essential apps and services for maximum
+              performance. Everything is restored when you end the boost.
+            </p>
+          </header>
+
+          <div class="boost-grid">
+            <div class="boost-card">
+              <button id="boost-btn" class="boost-btn">
+                <span class="power">⏻</span>
+                <span id="boost-label">BOOST NOW</span>
+              </button>
+              <div class="boost-meta">
+                Profile:
+                <strong id="active-profile">Gaming</strong>
+              </div>
+              <div id="boost-counts" class="counts">Ready when you are.</div>
+            </div>
+
+            <div class="metrics-card">
+              <div class="metric">
+                <div class="metric-label">Memory in use</div>
+                <div class="metric-value" id="mem-value">—</div>
+                <div class="bar"><div id="mem-bar" class="bar-fill"></div></div>
+              </div>
+              <div class="metric">
+                <div class="metric-label">Freed this boost</div>
+                <div class="metric-value freed" id="freed-value">+0 GB</div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- APPS VIEW -->
+        <section class="view hidden" id="view-apps">
+          <header class="view-head">
+            <h1>Apps &amp; Services</h1>
+            <p class="sub">
+              Locked items are protected and can never be suspended. Toggle the
+              rest to build a Custom profile.
+            </p>
+          </header>
+          <div class="columns">
+            <div>
+              <h2>Processes</h2>
+              <ul id="proc-list" class="candidate-list"></ul>
+            </div>
+            <div>
+              <h2>Services</h2>
+              <ul id="svc-list" class="candidate-list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <!-- LOGS VIEW -->
+        <section class="view hidden" id="view-logs">
+          <header class="view-head">
+            <h1>Logs</h1>
+            <p class="sub">Recent boost sessions and restore results.</p>
+          </header>
+          <ul id="log-list" class="log-list"></ul>
+        </section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

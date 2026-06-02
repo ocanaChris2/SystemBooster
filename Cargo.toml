@@ -1,0 +1,26 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/booster-core",
+    "crates/booster-ipc",
+    "crates/booster-service",
+]
+# booster-app (Tauri) is intentionally excluded from the root workspace: its
+# Rust backend depends on system libraries (webkit2gtk on Linux) that aren't
+# present in CI/dev containers. It is built on a developer machine with the
+# Tauri prerequisites installed. See crates/booster-app/README.md.
+exclude = ["crates/booster-app"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+authors = ["SystemBooster contributors"]
+
+[workspace.dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+uuid = { version = "1", features = ["v4", "serde"] }
+thiserror = "2"
+booster-core = { path = "crates/booster-core" }
+booster-ipc = { path = "crates/booster-ipc" }

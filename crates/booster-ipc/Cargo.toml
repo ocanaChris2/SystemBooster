@@ -1,0 +1,23 @@
+[package]
+name = "booster-ipc"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+description = "Shared request/response wire types and named-pipe transport between the UI and the service."
+
+[dependencies]
+serde = { workspace = true }
+serde_json = { workspace = true }
+booster-core = { workspace = true }
+
+# Named-pipe server with a restrictive security descriptor — Windows only.
+[target.'cfg(windows)'.dependencies]
+windows = { version = "0.59", features = [
+    "Win32_Foundation",
+    "Win32_Storage_FileSystem",
+    "Win32_System_IO",
+    "Win32_System_Pipes",
+    "Win32_Security",
+    "Win32_Security_Authorization",
+] }
